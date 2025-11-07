@@ -1,0 +1,36 @@
+lock:
+  name: Lock vehicle
+  description: Lock a SEAT vehicle by VIN
+  fields:
+    vin:
+      required: true
+      example: VSSZZZKJZLR012345
+      selector:
+        text: {}
+unlock:
+  name: Unlock vehicle
+  description: Unlock a SEAT vehicle by VIN
+  fields:
+    vin:
+      required: true
+      example: VSSZZZKJZLR012345
+      selector:
+        text: {}
+start_climate:
+  name: Start pre-conditioning
+  description: Start the climate pre-conditioning for a SEAT vehicle
+  fields:
+    vin:
+      required: true
+      example: VSSZZZKJZLR012345
+      selector:
+        text: {}
+stop_climate:
+  name: Stop pre-conditioning
+  description: Stop the climate pre-conditioning for a SEAT vehicle
+  fields:
+    vin:
+      required: true
+      example: VSSZZZKJZLR012345
+      selector:
+        text: {}

@@ -1,0 +1,7 @@
+{
+  "name": "SEAT Connect",
+  "content_in_root": false,
+  "render_readme": true,
+  "country": ["all"],
+  "filename": "custom_components/seat_connect/manifest.json"
+}

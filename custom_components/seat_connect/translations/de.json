@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SEAT Connect",
+        "description": "Autorisiere Home Assistant per OAuth2 für deinen SEAT Connect Account."
+      }
+    },
+    "abort": {
+      "already_configured": "Dieser Account ist bereits verbunden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SEAT Connect Optionen",
+        "data": {
+          "update_interval": "Aktualisierungsintervall (Sekunden)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery_soc": {
+        "name": "Batterie-Ladung"
+      },
+      "range": {
+        "name": "Reichweite"
+      },
+      "charging_power": {
+        "name": "Ladeleistung"
+      },
+      "charging_state": {
+        "name": "Ladezustand"
+      }
+    },
+    "binary_sensor": {
+      "plug_connected": {
+        "name": "Ladestecker"
+      },
+      "doors_windows_open": {
+        "name": "Türen/Fenster offen"
+      }
+    },
+    "lock": {
+      "vehicle_lock": {
+        "name": "Fahrzeugverriegelung"
+      }
+    },
+    "climate": {
+      "preconditioning": {
+        "name": "Vorklimatisierung"
+      }
+    }
+  }
+}

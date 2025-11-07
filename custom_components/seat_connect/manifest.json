@@ -1,0 +1,21 @@
+{
+  "domain": "seat_connect",
+  "name": "SEAT Connect",
+  "version": "0.1.0",
+  "documentation": "https://github.com/example/homeassistant-seat-connect",
+  "issue_tracker": "https://github.com/example/homeassistant-seat-connect/issues",
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "hub",
+  "requirements": [],
+  "dependencies": ["application_credentials"],
+  "after_dependencies": ["application_credentials"],
+  "codeowners": ["@seat-connect-community"],
+  "platforms": ["sensor", "binary_sensor", "lock", "climate"],
+  "oauth2_impl": {
+    "domain": "homeassistant",
+    "type": "application_credentials",
+    "authorize_url": "https://identity.vwgroup.io/signin-service/v1/authorize",
+    "token_url": "https://identity.vwgroup.io/signin-service/v1/token"
+  }
+}
