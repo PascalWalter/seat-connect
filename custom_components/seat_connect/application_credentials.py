@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.application_credentials import AuthorizationServer
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_entry_oauth2_flow
 
 from .const import AUTH_AUTHORIZE_URL, AUTH_TOKEN_URL, DOMAIN
 
 
-async def async_get_authorization_server(_hass):
+async def async_get_authorization_server(_hass: HomeAssistant) -> AuthorizationServer:
     """Return the Seat Connect authorization server metadata."""
 
     return AuthorizationServer(
@@ -18,8 +21,12 @@ async def async_get_authorization_server(_hass):
 
 
 async def async_get_auth_implementation(
-    hass, domain, client_id, client_secret, **kwargs
-):
+    hass: HomeAssistant,
+    _domain: str,
+    client_id: str,
+    client_secret: str,
+    **_kwargs: Any,
+) -> config_entry_oauth2_flow.LocalOAuth2Implementation:
     """Return the OAuth2 implementation bound to application credentials."""
 
     return config_entry_oauth2_flow.LocalOAuth2Implementation(

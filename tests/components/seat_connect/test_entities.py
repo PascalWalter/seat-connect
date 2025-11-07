@@ -24,7 +24,8 @@ VIN = "VIN123"
 
 
 @pytest.fixture
-async def coordinator(hass, vehicle_data):
+async def coordinator(hass, vehicle_data, config_entry):
+    config_entry.add_to_hass(hass)
     client = AsyncMock()
     client.async_get_vehicle_data.return_value = vehicle_data
     client.async_lock_vehicle = AsyncMock()
@@ -35,10 +36,10 @@ async def coordinator(hass, vehicle_data):
     coordinator = SeatDataUpdateCoordinator(
         hass,
         client=client,
-        entry_id="123",
+        entry=config_entry,
         update_interval=timedelta(seconds=60),
     )
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator.async_refresh()
     return coordinator
 
 

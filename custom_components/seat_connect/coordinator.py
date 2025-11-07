@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import SeatApiClientProtocol, SeatVehicleData, SeatApiError
-from .const import DOMAIN
+from .api import SeatApiClientProtocol, SeatApiError, SeatVehicleData
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,16 +22,17 @@ class SeatDataUpdateCoordinator(DataUpdateCoordinator[dict[str, SeatVehicleData]
         hass: HomeAssistant,
         *,
         client: SeatApiClientProtocol,
-        entry_id: str,
+        entry: ConfigEntry,
         update_interval: timedelta,
     ) -> None:
         super().__init__(
             hass,
             _LOGGER,
-            name=f"Seat Connect ({entry_id})",
+            name=f"Seat Connect ({entry.entry_id})",
             update_interval=update_interval,
         )
         self.client = client
+        self.config_entry = entry
 
     async def _async_update_data(self) -> dict[str, SeatVehicleData]:
         try:

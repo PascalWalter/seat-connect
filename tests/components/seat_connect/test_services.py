@@ -8,7 +8,12 @@ import pytest
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.seat_connect import async_setup_entry
-from custom_components.seat_connect.const import DOMAIN, SERVICE_LOCK, SERVICE_VIN
+from custom_components.seat_connect.const import (
+    DATA_ENTRIES,
+    DOMAIN,
+    SERVICE_LOCK,
+    SERVICE_VIN,
+)
 
 VIN = "VIN123"
 
@@ -35,8 +40,18 @@ async def test_lock_service_invokes_api(hass, config_entry, vehicle_data):
             "custom_components.seat_connect.__init__.config_entry_oauth2_flow.OAuth2Session",
             return_value=oauth_session,
         ),
+        patch(
+            "custom_components.seat_connect.coordinator.SeatDataUpdateCoordinator.async_config_entry_first_refresh",
+            AsyncMock(),
+        ),
     ):
         assert await async_setup_entry(hass, config_entry)
+
+    runtime = hass.data[DOMAIN][DATA_ENTRIES][config_entry.entry_id]
+    runtime.client = mock_client
+    runtime.coordinator.client = mock_client
+    runtime.coordinator.async_request_refresh = AsyncMock()
+    runtime.coordinator.data = vehicle_data
 
     await hass.services.async_call(
         DOMAIN,
@@ -70,8 +85,18 @@ async def test_service_raises_for_unknown_vin(hass, config_entry, vehicle_data):
             "custom_components.seat_connect.__init__.config_entry_oauth2_flow.OAuth2Session",
             return_value=oauth_session,
         ),
+        patch(
+            "custom_components.seat_connect.coordinator.SeatDataUpdateCoordinator.async_config_entry_first_refresh",
+            AsyncMock(),
+        ),
     ):
         assert await async_setup_entry(hass, config_entry)
+
+    runtime = hass.data[DOMAIN][DATA_ENTRIES][config_entry.entry_id]
+    runtime.client = mock_client
+    runtime.coordinator.client = mock_client
+    runtime.coordinator.async_request_refresh = AsyncMock()
+    runtime.coordinator.data = vehicle_data
 
     with pytest.raises(HomeAssistantError):
         await hass.services.async_call(

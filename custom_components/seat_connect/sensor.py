@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,13 +12,16 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.const import PERCENTAGE, UnitOfLength, UnitOfPower
 
 from .api import SeatVehicleData
 from .const import DATA_ENTRIES, DOMAIN
 from .entity import SeatConnectEntity
+
+if TYPE_CHECKING:
+    from .coordinator import SeatDataUpdateCoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -71,7 +74,9 @@ async def async_setup_entry(
 ) -> None:
     """Add Seat sensors."""
 
-    coordinator = hass.data[DOMAIN][DATA_ENTRIES][entry.entry_id].coordinator
+    coordinator: SeatDataUpdateCoordinator = hass.data[DOMAIN][DATA_ENTRIES][
+        entry.entry_id
+    ].coordinator
     entities = [
         SeatConnectSensorEntity(coordinator, vin, description)
         for vin in coordinator.data or {}
@@ -87,7 +92,7 @@ class SeatConnectSensorEntity(SeatConnectEntity[SeatVehicleData], SensorEntity):
 
     def __init__(
         self,
-        coordinator,
+        coordinator: "SeatDataUpdateCoordinator",
         vin: str,
         description: SeatSensorEntityDescription,
     ) -> None:
@@ -95,5 +100,5 @@ class SeatConnectSensorEntity(SeatConnectEntity[SeatVehicleData], SensorEntity):
         self.entity_description = description
 
     @property
-    def native_value(self):
+    def native_value(self) -> float | int | str | None:
         return self.entity_description.value_fn(self._vehicle)

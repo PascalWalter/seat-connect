@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -17,6 +17,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .api import SeatVehicleData
 from .const import DATA_ENTRIES, DOMAIN
 from .entity import SeatConnectEntity
+
+if TYPE_CHECKING:
+    from .coordinator import SeatDataUpdateCoordinator
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -57,7 +60,9 @@ def _derive_open_state(vehicle: SeatVehicleData) -> bool | None:
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = hass.data[DOMAIN][DATA_ENTRIES][entry.entry_id].coordinator
+    coordinator: SeatDataUpdateCoordinator = hass.data[DOMAIN][DATA_ENTRIES][
+        entry.entry_id
+    ].coordinator
     entities = [
         SeatConnectBinarySensorEntity(coordinator, vin, description)
         for vin in coordinator.data or {}
@@ -73,7 +78,7 @@ class SeatConnectBinarySensorEntity(SeatConnectEntity[SeatVehicleData], BinarySe
 
     def __init__(
         self,
-        coordinator,
+        coordinator: "SeatDataUpdateCoordinator",
         vin: str,
         description: SeatBinarySensorEntityDescription,
     ) -> None:

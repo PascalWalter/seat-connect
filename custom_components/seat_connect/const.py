@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 from datetime import timedelta
+
 from homeassistant.const import Platform
 
 DOMAIN = "seat_connect"
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.LOCK, Platform.CLIMATE]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.LOCK,
+    Platform.CLIMATE,
+]
 
 DEFAULT_UPDATE_INTERVAL = timedelta(seconds=90)
 CONF_UPDATE_INTERVAL = "update_interval"

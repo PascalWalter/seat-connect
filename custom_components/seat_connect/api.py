@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
+from http import HTTPStatus
 from typing import Any, Protocol
 
 import async_timeout
@@ -69,7 +70,7 @@ class SeatApiClientProtocol(Protocol):
 class SeatApiClient(SeatApiClientProtocol):
     """Seat Connect API client with retry/backoff handling."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         oauth_session: OAuth2Session,
         *,
@@ -101,9 +102,12 @@ class SeatApiClient(SeatApiClientProtocol):
         results = await asyncio.gather(*tasks, return_exceptions=True)
         data: dict[str, SeatVehicleData] = {}
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, SeatVehicleData):
+                data[result.vin] = result
+                continue
+            if isinstance(result, BaseException):
                 raise SeatApiError("Failed to refresh vehicle data") from result
-            data[result.vin] = result
+            raise SeatApiError("Failed to refresh vehicle data due to unknown error")
         return data
 
     async def async_lock_vehicle(self, vin: str) -> None:
@@ -135,7 +139,9 @@ class SeatApiClient(SeatApiClientProtocol):
             battery_range_km=_coerce_float(battery.get("remainingRangeKm")),
             charging_power_kw=_coerce_float(charging.get("powerKw")),
             charging_state=charging.get("state"),
-            plug_connected=bool(charging.get("plugConnected")) if "plugConnected" in charging else None,
+            plug_connected=(
+                bool(charging.get("plugConnected")) if "plugConnected" in charging else None
+            ),
             doors_closed=doors.get("allClosed"),
             windows_closed=doors.get("windowsClosed"),
             is_locked=locks.get("locked"),
@@ -147,32 +153,36 @@ class SeatApiClient(SeatApiClientProtocol):
         endpoint = f"/vehicles/{vin}/actions/{command}"
         await self._request("POST", endpoint)
 
-    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:  # noqa: PLR0912
         url = f"{self._base_url}{path}"
         attempt = 0
         while True:
             attempt += 1
             try:
-                async with self._semaphore:
-                    async with async_timeout.timeout(self._request_timeout):
-                        response = await self._oauth_session.async_request(method, url, **kwargs)
-                        try:
-                            if response.content_type == "application/json":
-                                return await response.json()
-                            if response.content_length == 0:
-                                return None
-                            return await response.text()
-                        finally:
-                            response.release()
+                async with self._semaphore, async_timeout.timeout(self._request_timeout):
+                    response = await self._oauth_session.async_request(method, url, **kwargs)
+                    try:
+                        if response.content_type == "application/json":
+                            return await response.json()
+                        if response.content_length == 0:
+                            return None
+                        return await response.text()
+                    finally:
+                        response.release()
             except ClientResponseError as err:
-                if err.status == 401:
+                if err.status == HTTPStatus.UNAUTHORIZED:
                     raise SeatApiAuthError("Authentication failed") from err
-                if err.status == 429:
+                if err.status == HTTPStatus.TOO_MANY_REQUESTS:
                     if attempt > self._max_retries:
                         raise SeatApiRateLimitError("Seat Connect rate limit exceeded") from err
                     await asyncio.sleep(self._backoff_factor * attempt)
                     continue
-                if 500 <= err.status < 600 and attempt <= self._max_retries:
+                if (
+                    HTTPStatus.INTERNAL_SERVER_ERROR
+                    <= err.status
+                    < HTTPStatus.INTERNAL_SERVER_ERROR + 100
+                    and attempt <= self._max_retries
+                ):
                     await asyncio.sleep(self._backoff_factor * attempt)
                     continue
                 raise SeatApiError(f"Seat Connect request failed: {err.status}") from err

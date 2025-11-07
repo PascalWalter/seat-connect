@@ -10,10 +10,12 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_entry_oauth2_flow, config_validation as cv
+from homeassistant.helpers import config_entry_oauth2_flow
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .api import SeatApiClient, SeatApiClientProtocol
+from .config_flow import SeatConnectOptionsFlowHandler
 from .const import (
     CONF_UPDATE_INTERVAL,
     DATA_ENTRIES,
@@ -64,7 +66,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = SeatDataUpdateCoordinator(
         hass,
         client=client,
-        entry_id=entry.entry_id,
+        entry=entry,
         update_interval=update_interval,
     )
     await coordinator.async_config_entry_first_refresh()
@@ -179,7 +181,5 @@ def _async_get_runtime_for_vin(hass: HomeAssistant, vin: str) -> SeatConnectRunt
 
 async def async_get_options_flow(entry: ConfigEntry) -> Any:
     """Return the options flow handler."""
-
-    from .config_flow import SeatConnectOptionsFlowHandler
 
     return SeatConnectOptionsFlowHandler(entry)

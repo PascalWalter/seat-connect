@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from homeassistant.components.climate import ClimateEntity, HVACMode
+from typing import TYPE_CHECKING
+
+from homeassistant.components.climate import ClimateEntity
+from homeassistant.components.climate.const import HVACMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -11,13 +14,18 @@ from .api import SeatVehicleData
 from .const import DATA_ENTRIES, DOMAIN
 from .entity import SeatConnectEntity
 
+if TYPE_CHECKING:
+    from .coordinator import SeatDataUpdateCoordinator
+
 SUPPORTED_HVAC_MODES: list[HVACMode] = [HVACMode.OFF, HVACMode.HEAT]
 
 
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = hass.data[DOMAIN][DATA_ENTRIES][entry.entry_id].coordinator
+    coordinator: SeatDataUpdateCoordinator = hass.data[DOMAIN][DATA_ENTRIES][
+        entry.entry_id
+    ].coordinator
     entities = [
         SeatConnectClimateEntity(coordinator, vin)
         for vin, vehicle in (coordinator.data or {}).items()
@@ -39,7 +47,7 @@ class SeatConnectClimateEntity(SeatConnectEntity[SeatVehicleData], ClimateEntity
     _attr_hvac_modes = SUPPORTED_HVAC_MODES
     _attr_translation_key = "preconditioning"
 
-    def __init__(self, coordinator, vin: str) -> None:
+    def __init__(self, coordinator: "SeatDataUpdateCoordinator", vin: str) -> None:
         super().__init__(coordinator, vin, "climate")
 
     @property
