@@ -3,55 +3,109 @@
     "step": {
       "user": {
         "title": "SEAT Connect",
-        "description": "Authorize Home Assistant to access your SEAT Connect account using OAuth2."
+        "description": "Enter your SEAT Connect credentials. You can find more information at {docs_url}",
+        "data": {
+          "username": "Email",
+          "password": "Password",
+          "spin": "S-PIN (optional, required for unlock)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate SEAT Connect",
+        "description": "Please enter the password for {username}",
+        "data": {
+          "password": "Password",
+          "spin": "S-PIN (optional)"
+        }
       }
     },
+    "error": {
+      "invalid_auth": "Invalid username or password",
+      "cannot_connect": "Cannot connect to SEAT Connect servers",
+      "no_vehicles": "No vehicles found in your account",
+      "unknown": "An unknown error occurred"
+    },
     "abort": {
-      "already_configured": "This account is already configured."
+      "already_configured": "This account is already configured",
+      "reauth_successful": "Re-authentication was successful"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "SEAT Connect options",
+        "title": "SEAT Connect Options",
         "data": {
-          "update_interval": "Update interval (seconds)"
+          "update_interval": "Update interval (seconds)",
+          "spin": "S-PIN"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "battery_soc": {
-        "name": "Battery SoC"
-      },
-      "range": {
-        "name": "Range"
-      },
-      "charging_power": {
-        "name": "Charging power"
-      },
-      "charging_state": {
-        "name": "Charging state"
-      }
+      "battery_soc": {"name": "Battery state of charge"},
+      "battery_range": {"name": "Electric range"},
+      "fuel_level": {"name": "Fuel level"},
+      "fuel_range": {"name": "Fuel range"},
+      "total_range": {"name": "Total range"},
+      "charging_power": {"name": "Charging power"},
+      "charging_state": {"name": "Charging state"},
+      "charging_time_remaining": {"name": "Charging time remaining"},
+      "target_soc": {"name": "Target state of charge"},
+      "max_charge_current": {"name": "Maximum charge current"},
+      "climate_target_temp": {"name": "Climate target temperature"},
+      "climate_remaining_time": {"name": "Climate remaining time"},
+      "odometer": {"name": "Odometer"},
+      "average_speed": {"name": "Average speed"},
+      "average_consumption_kwh": {"name": "Average consumption (electric)"},
+      "average_consumption_l": {"name": "Average consumption (fuel)"},
+      "engine_type": {"name": "Engine type"}
     },
     "binary_sensor": {
-      "plug_connected": {
-        "name": "Charging plug"
-      },
-      "doors_windows_open": {
-        "name": "Doors/Windows open"
-      }
+      "plug_connected": {"name": "Charging plug connected"},
+      "plug_locked": {"name": "Charging plug locked"},
+      "external_power": {"name": "External power available"},
+      "charging_active": {"name": "Charging active"},
+      "doors_closed": {"name": "All doors closed"},
+      "door_front_left": {"name": "Door front left"},
+      "door_front_right": {"name": "Door front right"},
+      "door_rear_left": {"name": "Door rear left"},
+      "door_rear_right": {"name": "Door rear right"},
+      "trunk": {"name": "Trunk"},
+      "hood": {"name": "Hood"},
+      "windows_closed": {"name": "All windows closed"},
+      "window_front_left": {"name": "Window front left"},
+      "window_front_right": {"name": "Window front right"},
+      "window_rear_left": {"name": "Window rear left"},
+      "window_rear_right": {"name": "Window rear right"},
+      "sunroof": {"name": "Sunroof"},
+      "climate_active": {"name": "Climatisation active"},
+      "window_heating_front": {"name": "Window heating front"},
+      "window_heating_rear": {"name": "Window heating rear"},
+      "vehicle_locked": {"name": "Vehicle locked"}
     },
     "lock": {
-      "vehicle_lock": {
-        "name": "Vehicle lock"
-      }
+      "vehicle_lock": {"name": "Vehicle lock"}
     },
     "climate": {
-      "preconditioning": {
-        "name": "Pre-conditioning"
-      }
+      "preconditioning": {"name": "Pre-conditioning"}
+    },
+    "device_tracker": {
+      "vehicle_position": {"name": "Vehicle position"}
+    },
+    "switch": {
+      "charging": {"name": "Charging"},
+      "window_heating_front": {"name": "Window heating front"},
+      "window_heating_rear": {"name": "Window heating rear"}
+    },
+    "number": {
+      "target_soc": {"name": "Target state of charge"}
+    },
+    "button": {
+      "honk_flash": {"name": "Honk and flash"},
+      "honk": {"name": "Honk"},
+      "flash": {"name": "Flash lights"},
+      "refresh": {"name": "Force refresh"}
     }
   }
 }

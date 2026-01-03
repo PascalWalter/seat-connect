@@ -8,26 +8,38 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import SeatApiClient, SeatApiClientProtocol
 from .config_flow import SeatConnectOptionsFlowHandler
 from .const import (
+    CONF_SPIN,
     CONF_UPDATE_INTERVAL,
     DATA_ENTRIES,
     DATA_SERVICES_REGISTERED,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     PLATFORMS,
+    SERVICE_HONK,
+    SERVICE_FLASH,
     SERVICE_LOCK,
+    SERVICE_SET_CHARGE_CURRENT,
+    SERVICE_SET_CHARGE_LIMIT,
+    SERVICE_START_CHARGING,
     SERVICE_START_CLIMATE,
+    SERVICE_STOP_CHARGING,
     SERVICE_STOP_CLIMATE,
+    SERVICE_TRIGGER_REQUEST,
     SERVICE_UNLOCK,
     SERVICE_VIN,
+    SERVICE_TARGET_SOC,
+    SERVICE_CHARGE_CURRENT,
 )
 from .coordinator import SeatDataUpdateCoordinator
 
@@ -56,11 +68,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store.setdefault(DATA_ENTRIES, {})
     store.setdefault(DATA_SERVICES_REGISTERED, False)
 
-    implementation = await config_entry_oauth2_flow.async_get_config_entry_implementation(
-        hass, entry
-    )
-    oauth_session = config_entry_oauth2_flow.OAuth2Session(hass, entry, implementation)
-    client = SeatApiClient(oauth_session)
+    session = async_get_clientsession(hass)
+
+    # Check if using OAuth or username/password authentication
+    if "auth_implementation" in entry.data:
+        # OAuth2 flow
+        implementation = await config_entry_oauth2_flow.async_get_config_entry_implementation(
+            hass, entry
+        )
+        oauth_session = config_entry_oauth2_flow.OAuth2Session(hass, entry, implementation)
+        client = SeatApiClient(
+            session=session,
+            oauth_session=oauth_session,
+            spin=entry.data.get(CONF_SPIN),
+        )
+    else:
+        # Username/password authentication
+        client = SeatApiClient(
+            session=session,
+            username=entry.data.get(CONF_USERNAME),
+            password=entry.data.get(CONF_PASSWORD),
+            spin=entry.data.get(CONF_SPIN),
+        )
 
     update_interval = _async_get_update_interval(entry)
     coordinator = SeatDataUpdateCoordinator(
@@ -117,7 +146,17 @@ async def _async_register_services(hass: HomeAssistant) -> None:
     if data.get(DATA_SERVICES_REGISTERED):
         return
 
-    schema = vol.Schema({vol.Required(SERVICE_VIN): cv.string})
+    vin_schema = vol.Schema({vol.Required(SERVICE_VIN): cv.string})
+
+    charge_limit_schema = vol.Schema({
+        vol.Required(SERVICE_VIN): cv.string,
+        vol.Required(SERVICE_TARGET_SOC): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+    })
+
+    charge_current_schema = vol.Schema({
+        vol.Required(SERVICE_VIN): cv.string,
+        vol.Required(SERVICE_CHARGE_CURRENT): vol.In(["reduced", "max"]),
+    })
 
     async def _async_call_service(call: ServiceCall, action: str) -> None:
         vin = call.data[SERVICE_VIN]
@@ -133,6 +172,23 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             await runtime.client.async_start_climate(vin)
         elif action == SERVICE_STOP_CLIMATE:
             await runtime.client.async_stop_climate(vin)
+        elif action == SERVICE_START_CHARGING:
+            await runtime.client.async_start_charging(vin)
+        elif action == SERVICE_STOP_CHARGING:
+            await runtime.client.async_stop_charging(vin)
+        elif action == SERVICE_HONK:
+            await runtime.client.async_honk_flash(vin, honk=True, flash=False)
+        elif action == SERVICE_FLASH:
+            await runtime.client.async_honk_flash(vin, honk=False, flash=True)
+        elif action == SERVICE_TRIGGER_REQUEST:
+            await runtime.client.async_trigger_request(vin)
+        elif action == SERVICE_SET_CHARGE_LIMIT:
+            target_soc = call.data[SERVICE_TARGET_SOC]
+            await runtime.client.async_set_charge_limit(vin, target_soc)
+        elif action == SERVICE_SET_CHARGE_CURRENT:
+            current = call.data[SERVICE_CHARGE_CURRENT]
+            await runtime.client.async_set_charge_current(vin, current)
+
         await runtime.coordinator.async_request_refresh()
 
     async def _handle_lock(call: ServiceCall) -> None:
@@ -147,13 +203,51 @@ async def _async_register_services(hass: HomeAssistant) -> None:
     async def _handle_stop_climate(call: ServiceCall) -> None:
         await _async_call_service(call, SERVICE_STOP_CLIMATE)
 
-    hass.services.async_register(DOMAIN, SERVICE_LOCK, _handle_lock, schema=schema)
-    hass.services.async_register(DOMAIN, SERVICE_UNLOCK, _handle_unlock, schema=schema)
+    async def _handle_start_charging(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_START_CHARGING)
+
+    async def _handle_stop_charging(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_STOP_CHARGING)
+
+    async def _handle_honk(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_HONK)
+
+    async def _handle_flash(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_FLASH)
+
+    async def _handle_trigger_request(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_TRIGGER_REQUEST)
+
+    async def _handle_set_charge_limit(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_SET_CHARGE_LIMIT)
+
+    async def _handle_set_charge_current(call: ServiceCall) -> None:
+        await _async_call_service(call, SERVICE_SET_CHARGE_CURRENT)
+
+    hass.services.async_register(DOMAIN, SERVICE_LOCK, _handle_lock, schema=vin_schema)
+    hass.services.async_register(DOMAIN, SERVICE_UNLOCK, _handle_unlock, schema=vin_schema)
     hass.services.async_register(
-        DOMAIN, SERVICE_START_CLIMATE, _handle_start_climate, schema=schema
+        DOMAIN, SERVICE_START_CLIMATE, _handle_start_climate, schema=vin_schema
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_STOP_CLIMATE, _handle_stop_climate, schema=schema
+        DOMAIN, SERVICE_STOP_CLIMATE, _handle_stop_climate, schema=vin_schema
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_CHARGING, _handle_start_charging, schema=vin_schema
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_STOP_CHARGING, _handle_stop_charging, schema=vin_schema
+    )
+    hass.services.async_register(DOMAIN, SERVICE_HONK, _handle_honk, schema=vin_schema)
+    hass.services.async_register(DOMAIN, SERVICE_FLASH, _handle_flash, schema=vin_schema)
+    hass.services.async_register(
+        DOMAIN, SERVICE_TRIGGER_REQUEST, _handle_trigger_request, schema=vin_schema
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_CHARGE_LIMIT, _handle_set_charge_limit, schema=charge_limit_schema
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_CHARGE_CURRENT, _handle_set_charge_current, schema=charge_current_schema
     )
 
     data[DATA_SERVICES_REGISTERED] = True
@@ -164,10 +258,23 @@ async def _async_unregister_services(hass: HomeAssistant) -> None:
     if not data or not data.get(DATA_SERVICES_REGISTERED):
         return
 
-    hass.services.async_remove(DOMAIN, SERVICE_LOCK)
-    hass.services.async_remove(DOMAIN, SERVICE_UNLOCK)
-    hass.services.async_remove(DOMAIN, SERVICE_START_CLIMATE)
-    hass.services.async_remove(DOMAIN, SERVICE_STOP_CLIMATE)
+    services = [
+        SERVICE_LOCK,
+        SERVICE_UNLOCK,
+        SERVICE_START_CLIMATE,
+        SERVICE_STOP_CLIMATE,
+        SERVICE_START_CHARGING,
+        SERVICE_STOP_CHARGING,
+        SERVICE_HONK,
+        SERVICE_FLASH,
+        SERVICE_TRIGGER_REQUEST,
+        SERVICE_SET_CHARGE_LIMIT,
+        SERVICE_SET_CHARGE_CURRENT,
+    ]
+
+    for service in services:
+        hass.services.async_remove(DOMAIN, service)
+
     data[DATA_SERVICES_REGISTERED] = False
 
 

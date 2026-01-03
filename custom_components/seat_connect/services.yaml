@@ -1,36 +1,139 @@
 lock:
   name: Lock vehicle
-  description: Lock a SEAT vehicle by VIN
+  description: Lock the vehicle doors
   fields:
     vin:
+      name: VIN
+      description: Vehicle Identification Number
       required: true
-      example: VSSZZZKJZLR012345
       selector:
-        text: {}
+        text:
+
 unlock:
   name: Unlock vehicle
-  description: Unlock a SEAT vehicle by VIN
+  description: Unlock the vehicle doors
   fields:
     vin:
+      name: VIN
+      description: Vehicle Identification Number
       required: true
-      example: VSSZZZKJZLR012345
       selector:
-        text: {}
+        text:
+
 start_climate:
-  name: Start pre-conditioning
-  description: Start the climate pre-conditioning for a SEAT vehicle
+  name: Start climate
+  description: Start the vehicle's climatisation/pre-conditioning
   fields:
     vin:
+      name: VIN
+      description: Vehicle Identification Number
       required: true
-      example: VSSZZZKJZLR012345
       selector:
-        text: {}
+        text:
+
 stop_climate:
-  name: Stop pre-conditioning
-  description: Stop the climate pre-conditioning for a SEAT vehicle
+  name: Stop climate
+  description: Stop the vehicle's climatisation/pre-conditioning
   fields:
     vin:
+      name: VIN
+      description: Vehicle Identification Number
       required: true
-      example: VSSZZZKJZLR012345
       selector:
-        text: {}
+        text:
+
+start_charging:
+  name: Start charging
+  description: Start charging the vehicle
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+
+stop_charging:
+  name: Stop charging
+  description: Stop charging the vehicle
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+
+honk:
+  name: Honk
+  description: Activate the vehicle's horn
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+
+flash:
+  name: Flash lights
+  description: Flash the vehicle's lights
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+
+trigger_request:
+  name: Force refresh
+  description: Request the vehicle to update its status
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+
+set_charge_limit:
+  name: Set charge limit
+  description: Set the target state of charge
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+    target_soc:
+      name: Target SoC
+      description: Target state of charge in percent
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 10
+          unit_of_measurement: "%"
+
+set_charge_current:
+  name: Set charge current
+  description: Set the maximum charge current
+  fields:
+    vin:
+      name: VIN
+      description: Vehicle Identification Number
+      required: true
+      selector:
+        text:
+    charge_current:
+      name: Charge current
+      description: Maximum charge current setting
+      required: true
+      selector:
+        select:
+          options:
+            - "reduced"
+            - "max"

@@ -3,11 +3,31 @@
     "step": {
       "user": {
         "title": "SEAT Connect",
-        "description": "Autorisiere Home Assistant per OAuth2 für deinen SEAT Connect Account."
+        "description": "Gib deine SEAT Connect Zugangsdaten ein. Weitere Informationen findest du unter {docs_url}",
+        "data": {
+          "username": "E-Mail",
+          "password": "Passwort",
+          "spin": "S-PIN (optional, für Entsperren erforderlich)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "SEAT Connect erneut authentifizieren",
+        "description": "Bitte gib das Passwort für {username} ein",
+        "data": {
+          "password": "Passwort",
+          "spin": "S-PIN (optional)"
+        }
       }
     },
+    "error": {
+      "invalid_auth": "Ungültiger Benutzername oder Passwort",
+      "cannot_connect": "Verbindung zu SEAT Connect Servern nicht möglich",
+      "no_vehicles": "Keine Fahrzeuge in deinem Konto gefunden",
+      "unknown": "Ein unbekannter Fehler ist aufgetreten"
+    },
     "abort": {
-      "already_configured": "Dieser Account ist bereits verbunden."
+      "already_configured": "Dieses Konto ist bereits konfiguriert",
+      "reauth_successful": "Erneute Authentifizierung war erfolgreich"
     }
   },
   "options": {
@@ -15,43 +35,77 @@
       "init": {
         "title": "SEAT Connect Optionen",
         "data": {
-          "update_interval": "Aktualisierungsintervall (Sekunden)"
+          "update_interval": "Aktualisierungsintervall (Sekunden)",
+          "spin": "S-PIN"
         }
       }
     }
   },
   "entity": {
     "sensor": {
-      "battery_soc": {
-        "name": "Batterie-Ladung"
-      },
-      "range": {
-        "name": "Reichweite"
-      },
-      "charging_power": {
-        "name": "Ladeleistung"
-      },
-      "charging_state": {
-        "name": "Ladezustand"
-      }
+      "battery_soc": {"name": "Batterieladezustand"},
+      "battery_range": {"name": "Elektrische Reichweite"},
+      "fuel_level": {"name": "Tankfüllstand"},
+      "fuel_range": {"name": "Kraftstoff-Reichweite"},
+      "total_range": {"name": "Gesamtreichweite"},
+      "charging_power": {"name": "Ladeleistung"},
+      "charging_state": {"name": "Ladezustand"},
+      "charging_time_remaining": {"name": "Verbleibende Ladezeit"},
+      "target_soc": {"name": "Ziel-Ladezustand"},
+      "max_charge_current": {"name": "Maximaler Ladestrom"},
+      "climate_target_temp": {"name": "Klimatisierung Zieltemperatur"},
+      "climate_remaining_time": {"name": "Klimatisierung Restzeit"},
+      "odometer": {"name": "Kilometerstand"},
+      "average_speed": {"name": "Durchschnittsgeschwindigkeit"},
+      "average_consumption_kwh": {"name": "Durchschnittsverbrauch (elektrisch)"},
+      "average_consumption_l": {"name": "Durchschnittsverbrauch (Kraftstoff)"},
+      "engine_type": {"name": "Motortyp"}
     },
     "binary_sensor": {
-      "plug_connected": {
-        "name": "Ladestecker"
-      },
-      "doors_windows_open": {
-        "name": "Türen/Fenster offen"
-      }
+      "plug_connected": {"name": "Ladestecker angeschlossen"},
+      "plug_locked": {"name": "Ladestecker verriegelt"},
+      "external_power": {"name": "Externe Stromversorgung"},
+      "charging_active": {"name": "Laden aktiv"},
+      "doors_closed": {"name": "Alle Türen geschlossen"},
+      "door_front_left": {"name": "Tür vorne links"},
+      "door_front_right": {"name": "Tür vorne rechts"},
+      "door_rear_left": {"name": "Tür hinten links"},
+      "door_rear_right": {"name": "Tür hinten rechts"},
+      "trunk": {"name": "Kofferraum"},
+      "hood": {"name": "Motorhaube"},
+      "windows_closed": {"name": "Alle Fenster geschlossen"},
+      "window_front_left": {"name": "Fenster vorne links"},
+      "window_front_right": {"name": "Fenster vorne rechts"},
+      "window_rear_left": {"name": "Fenster hinten links"},
+      "window_rear_right": {"name": "Fenster hinten rechts"},
+      "sunroof": {"name": "Schiebedach"},
+      "climate_active": {"name": "Klimatisierung aktiv"},
+      "window_heating_front": {"name": "Frontscheibenheizung"},
+      "window_heating_rear": {"name": "Heckscheibenheizung"},
+      "vehicle_locked": {"name": "Fahrzeug verriegelt"}
     },
     "lock": {
-      "vehicle_lock": {
-        "name": "Fahrzeugverriegelung"
-      }
+      "vehicle_lock": {"name": "Fahrzeugverriegelung"}
     },
     "climate": {
-      "preconditioning": {
-        "name": "Vorklimatisierung"
-      }
+      "preconditioning": {"name": "Standklimatisierung"}
+    },
+    "device_tracker": {
+      "vehicle_position": {"name": "Fahrzeugposition"}
+    },
+    "switch": {
+      "charging": {"name": "Laden"},
+      "window_heating_front": {"name": "Frontscheibenheizung"},
+      "window_heating_rear": {"name": "Heckscheibenheizung"}
+    },
+    "number": {
+      "target_soc": {"name": "Ziel-Ladezustand"}
+    },
+    "button": {
+      "honk_flash": {"name": "Hupen und Blinken"},
+      "honk": {"name": "Hupen"},
+      "flash": {"name": "Lichthupe"},
+      "refresh": {"name": "Aktualisierung erzwingen"}
     }
   }
 }
