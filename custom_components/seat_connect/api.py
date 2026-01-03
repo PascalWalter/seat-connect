@@ -292,16 +292,6 @@ class SeatConnectAuth:
         try:
             _LOGGER.debug("Starting Seat Connect authentication flow")
 
-            # First, check if we can reach the identity server
-            try:
-                async with self._session.get(
-                    AUTH_AUTHORIZE_URL.rsplit("/", 1)[0],  # Base URL
-                    timeout=aiohttp.ClientTimeout(total=10)
-                ) as resp:
-                    _LOGGER.debug("Identity server reachable, status: %s", resp.status)
-            except aiohttp.ClientError as e:
-                _LOGGER.error("Cannot reach VW Group identity server: %s", e)
-                raise SeatApiCommunicationError(f"Cannot reach authentication server: {e}") from e
 
             # Generate PKCE challenge
             code_verifier = secrets.token_urlsafe(64)[:64]
@@ -1222,6 +1212,9 @@ class SeatApiClient(SeatApiClientProtocol):
                             return None
                         return await response.text()
 
+            except (SeatApiAuthError, SeatApiCommunicationError, SeatApiError):
+                # Re-raise our own exceptions
+                raise
             except ClientError as err:
                 if attempt > self._max_retries:
                     raise SeatApiCommunicationError("Network error") from err
