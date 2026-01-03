@@ -24,7 +24,9 @@ from .const import (
     AUTH_TOKEN_URL,
     CLIENT_ID,
     LOGGER_NAME,
+    REDIRECT_URI,
     SCOPES,
+    UI_LOCALES,
     USER_AGENT,
     X_APP_NAME,
     X_APP_VERSION,
@@ -290,6 +292,17 @@ class SeatConnectAuth:
         try:
             _LOGGER.debug("Starting Seat Connect authentication flow")
 
+            # First, check if we can reach the identity server
+            try:
+                async with self._session.get(
+                    AUTH_AUTHORIZE_URL.rsplit("/", 1)[0],  # Base URL
+                    timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
+                    _LOGGER.debug("Identity server reachable, status: %s", resp.status)
+            except aiohttp.ClientError as e:
+                _LOGGER.error("Cannot reach VW Group identity server: %s", e)
+                raise SeatApiCommunicationError(f"Cannot reach authentication server: {e}") from e
+
             # Generate PKCE challenge
             code_verifier = secrets.token_urlsafe(64)[:64]
             code_challenge = base64.urlsafe_b64encode(
@@ -303,12 +316,13 @@ class SeatConnectAuth:
             auth_params = {
                 "response_type": "code id_token",
                 "client_id": CLIENT_ID,
-                "redirect_uri": "seatconnect://identity-kit/login",
+                "redirect_uri": REDIRECT_URI,
                 "scope": " ".join(SCOPES),
                 "state": state,
                 "nonce": nonce,
                 "code_challenge": code_challenge,
                 "code_challenge_method": "S256",
+                "ui_locales": UI_LOCALES,
                 "prompt": "login",
             }
 
@@ -341,19 +355,16 @@ class SeatConnectAuth:
                 # Step 2: Parse the login form
                 _LOGGER.debug("Step 2: Parsing login form")
 
-                # Extract form action
-                form_match = re.search(r'<form[^>]*id=["\']emailPasswordForm["\'][^>]*action=["\']([^"\']+)["\']', html, re.I | re.DOTALL)
-                if not form_match:
-                    form_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\'][^>]*id=["\']emailPasswordForm["\']', html, re.I | re.DOTALL)
-                if not form_match:
-                    form_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\']', html, re.I)
+                # The VW Group uses Auth0, form fields are: username, password, state
+                # Look for the form action (may be handled by JavaScript)
+                form_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\']', html, re.I)
 
-                if not form_match:
-                    _LOGGER.error("Could not find login form")
-                    _LOGGER.debug("HTML snippet: %s", html[:3000])
-                    raise SeatApiAuthError("Could not find login form on authorization page")
-
-                form_action = html_module.unescape(form_match.group(1))
+                if form_match:
+                    form_action = html_module.unescape(form_match.group(1))
+                else:
+                    # Auth0 forms often POST to the same URL
+                    form_action = current_url
+                    _LOGGER.debug("No form action found, using current URL")
 
                 # Make absolute URL
                 if form_action.startswith("/"):
@@ -365,7 +376,7 @@ class SeatConnectAuth:
 
                 _LOGGER.debug("Form action: %s", form_action)
 
-                # Extract hidden fields
+                # Extract hidden fields (especially 'state' for Auth0)
                 hidden_fields = {}
                 for match in re.finditer(r'<input[^>]*type=["\']hidden["\'][^>]*>', html, re.I):
                     input_html = match.group(0)
@@ -379,11 +390,12 @@ class SeatConnectAuth:
                 _LOGGER.debug("Found hidden fields: %s", list(hidden_fields.keys()))
 
                 # Step 3: Submit credentials
+                # Auth0/VW Group uses 'username' field (not 'email')
                 _LOGGER.debug("Step 3: Submitting credentials")
 
                 login_data = {
                     **hidden_fields,
-                    "email": self._username,
+                    "username": self._username,  # Auth0 uses 'username'
                     "password": self._password,
                 }
 
@@ -403,11 +415,19 @@ class SeatConnectAuth:
                     if resp.status == 200:
                         # Check for error in response
                         error_html = await resp.text()
-                        if "error" in error_html.lower() or "incorrect" in error_html.lower() or "falsch" in error_html.lower():
+                        if "error" in error_html.lower() or "incorrect" in error_html.lower() or "falsch" in error_html.lower() or "wrong" in error_html.lower():
                             _LOGGER.error("Login failed - invalid credentials")
                             raise SeatApiAuthError("Invalid username or password")
                         # May need another redirect
                         redirect_url = str(resp.url)
+                    elif resp.status == 400:
+                        # Auth0 returns 400 for authentication errors
+                        error_html = await resp.text()
+                        if "incorrect" in error_html.lower() or "wrong" in error_html.lower() or "falsch" in error_html.lower():
+                            _LOGGER.error("Login failed - invalid credentials (400)")
+                            raise SeatApiAuthError("Invalid username or password")
+                        _LOGGER.error("Login submission failed: %s", error_html[:200])
+                        raise SeatApiAuthError("Login failed - bad request")
                     elif resp.status in (301, 302, 303, 307):
                         redirect_url = resp.headers.get("Location", "")
                     else:
@@ -422,10 +442,13 @@ class SeatConnectAuth:
                     if not redirect_url:
                         break
 
-                    _LOGGER.debug("Redirect %d: %s", i + 1, redirect_url[:100])
+                    _LOGGER.debug("Redirect %d: %s", i + 1, redirect_url[:150] if len(redirect_url) > 150 else redirect_url)
 
-                    # Check if we have the authorization code
-                    if "seatconnect://" in redirect_url or "#code=" in redirect_url or "?code=" in redirect_url:
+                    # Check if we have the authorization code (check for app scheme or code parameter)
+                    if (REDIRECT_URI.split("://")[0] + "://" in redirect_url or
+                        "#code=" in redirect_url or
+                        "?code=" in redirect_url or
+                        "&code=" in redirect_url):
                         break
 
                     # Make absolute URL if needed
@@ -460,8 +483,20 @@ class SeatConnectAuth:
                                 _LOGGER.debug("Unexpected status %s during redirect", resp.status)
                                 break
                     except aiohttp.ClientResponseError as e:
-                        if "seatconnect://" in str(e):
-                            redirect_url = str(e)
+                        # Custom URI scheme redirects may cause an error
+                        error_str = str(e)
+                        app_scheme = REDIRECT_URI.split("://")[0]
+                        if app_scheme in error_str or "code=" in error_str:
+                            # Try to extract the URL from the error
+                            redirect_url = error_str
+                            break
+                        raise
+                    except aiohttp.InvalidURL as e:
+                        # Custom URI scheme like seatconnect:// may trigger InvalidURL
+                        error_str = str(e)
+                        app_scheme = REDIRECT_URI.split("://")[0]
+                        if app_scheme in error_str:
+                            redirect_url = error_str
                             break
                         raise
 
@@ -494,7 +529,7 @@ class SeatConnectAuth:
                 "grant_type": "authorization_code",
                 "code": auth_code,
                 "client_id": CLIENT_ID,
-                "redirect_uri": "seatconnect://identity-kit/login",
+                "redirect_uri": REDIRECT_URI,
                 "code_verifier": code_verifier,
             }
 

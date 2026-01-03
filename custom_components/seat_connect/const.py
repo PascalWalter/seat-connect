@@ -27,24 +27,39 @@ DATA_ENTRIES = "entries"
 DATA_SERVICES_REGISTERED = "services_registered"
 
 # Seat Connect API Endpoints (VW Group ecosystem)
+# Updated to use current SEAT/Cupra API infrastructure
 API_BASE_URL = "https://msg.volkswagen.de/fs-car"
 API_HOMEREGION_URL = "https://mal-1a.prd.ece.vwg-connect.com/api"
 API_VEHICLE_URL = "https://msg.volkswagen.de"
 
+# New MBB API endpoints (Mobile Backend)
+MBB_API_BASE = "https://mobileapi.apps.emea.vwapps.io"
+SEAT_API_BASE = "https://ola.prod.code.seat.cloud.vwgroup.com"
+
 # OAuth2 Configuration for Seat Connect
-# Uses VW Group Identity Provider with Seat-specific client
+# Uses VW Group Identity Provider - SEAT now uses the VW ID infrastructure
 AUTH_BASE_URL = "https://identity.vwgroup.io"
 AUTH_AUTHORIZE_URL = f"{AUTH_BASE_URL}/oidc/v1/authorize"
 AUTH_TOKEN_URL = f"{AUTH_BASE_URL}/oidc/v1/token"
 AUTH_REVOKE_URL = f"{AUTH_BASE_URL}/oidc/v1/revoke"
 
 # Seat Connect App Client Configuration
-CLIENT_ID = "50f215ac-4f68-4c4b-b9f3-45e21de01986@apps_vw-dilab_com"
-USER_AGENT = "SEATConnect/2.11.0 (Android)"
-X_APP_NAME = "SEATConnect"
-X_APP_VERSION = "2.11.0"
+# Using VW ID client which works with the current VW Group identity system
+# SEAT vehicles are accessible through the VW Group ecosystem
+CLIENT_ID = "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com"
+REDIRECT_URI = "weconnect://authenticated"
+USER_AGENT = "WeConnect/5.14.2 (Android 14)"
+X_APP_NAME = "WeConnect"
+X_APP_VERSION = "5.14.2"
 
-# API Scopes
+# UI Locale for authentication (required by VW Group)
+UI_LOCALES = "de-DE de"
+
+# Alternative SEAT-specific configuration (may work in the future)
+# SEAT_CLIENT_ID = "50f215ac-4f68-4c4b-b9f3-45e21de01986@apps_vw-dilab_com"
+# SEAT_REDIRECT_URI = "seatconnect://identity-kit/login"
+
+# API Scopes - these need to match what VW ID/We Connect app uses
 SCOPES = [
     "openid",
     "profile",
@@ -52,11 +67,12 @@ SCOPES = [
     "phone",
     "email",
     "birthdate",
-    "nationalIdentifier",
-    "mbb",
+    "nickname",
+    "badge",
     "cars",
+    "mbb",
     "dealers",
-    "vin",
+    "nationalIdentifier",
 ]
 
 # Service Actions
