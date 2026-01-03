@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 else:  # pragma: no cover - runtime fallback for older HA versions
     ConfigFlowResult = FlowResult  # type: ignore[misc, assignment]
 
-from .api import SeatApiClient, SeatApiAuthError
+from .api import SeatApiClient, SeatApiAuthError, SeatApiError, SeatApiCommunicationError
 from .const import (
     CONF_SPIN,
     CONF_UPDATE_INTERVAL,
@@ -65,12 +65,16 @@ class SeatConnectFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     spin=self._spin,
                 )
 
+                _LOGGER.debug("Attempting to authenticate with Seat Connect API")
+
                 # Try to authenticate and get vehicle data
                 vehicles = await client.async_get_vehicle_data()
 
                 if not vehicles:
+                    _LOGGER.warning("Authentication successful but no vehicles found")
                     errors["base"] = "no_vehicles"
                 else:
+                    _LOGGER.info("Found %d vehicle(s)", len(vehicles))
                     # Create unique ID from username
                     await self.async_set_unique_id(self._username.lower())
                     self._abort_if_unique_id_configured()
@@ -84,12 +88,20 @@ class SeatConnectFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                         },
                     )
 
-            except SeatApiAuthError:
+            except SeatApiAuthError as err:
+                _LOGGER.error("Authentication failed: %s", err)
                 errors["base"] = "invalid_auth"
-            except aiohttp.ClientError:
+            except SeatApiCommunicationError as err:
+                _LOGGER.error("Communication error: %s", err)
                 errors["base"] = "cannot_connect"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception during setup")
+            except SeatApiError as err:
+                _LOGGER.error("API error: %s", err)
+                errors["base"] = "cannot_connect"
+            except aiohttp.ClientError as err:
+                _LOGGER.error("Connection error: %s", err)
+                errors["base"] = "cannot_connect"
+            except Exception as err:  # pylint: disable=broad-except
+                _LOGGER.exception("Unexpected exception during setup: %s", err)
                 errors["base"] = "unknown"
 
         return self.async_show_form(

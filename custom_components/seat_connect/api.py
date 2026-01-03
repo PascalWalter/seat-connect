@@ -261,7 +261,10 @@ class SeatApiClientProtocol(Protocol):
 
 
 class SeatConnectAuth:
-    """Handle Seat Connect authentication."""
+    """Handle Seat Connect authentication via VW Group Identity Provider."""
+
+    # VW Group Login-specific URLs
+    LOGIN_BASE = "https://identity.vwgroup.io"
 
     def __init__(self, username: str, password: str, session: ClientSession) -> None:
         self._username = username
@@ -271,6 +274,8 @@ class SeatConnectAuth:
         self._refresh_token: str | None = None
         self._id_token: str | None = None
         self._token_expires: float | None = None
+        # Use a cookie jar for maintaining session
+        self._jar = aiohttp.CookieJar()
 
     @property
     def access_token(self) -> str | None:
@@ -278,8 +283,13 @@ class SeatConnectAuth:
         return self._access_token
 
     async def async_login(self) -> bool:
-        """Perform full login flow."""
+        """Perform full login flow via VW Group Identity Provider."""
+        import re
+        import html as html_module
+
         try:
+            _LOGGER.debug("Starting Seat Connect authentication flow")
+
             # Generate PKCE challenge
             code_verifier = secrets.token_urlsafe(64)[:64]
             code_challenge = base64.urlsafe_b64encode(
@@ -289,7 +299,7 @@ class SeatConnectAuth:
             state = secrets.token_urlsafe(16)
             nonce = secrets.token_urlsafe(16)
 
-            # Step 1: Get authorization page
+            # Step 1: Initialize authorization request
             auth_params = {
                 "response_type": "code id_token",
                 "client_id": CLIENT_ID,
@@ -299,51 +309,187 @@ class SeatConnectAuth:
                 "nonce": nonce,
                 "code_challenge": code_challenge,
                 "code_challenge_method": "S256",
+                "prompt": "login",
             }
 
-            headers = self._get_headers()
+            headers = self._get_browser_headers()
 
-            async with self._session.get(
-                AUTH_AUTHORIZE_URL,
-                params=auth_params,
-                headers=headers,
-                allow_redirects=False
-            ) as resp:
-                if resp.status not in (200, 302, 303):
-                    _LOGGER.error("Authorization failed: %s", resp.status)
-                    return False
+            _LOGGER.debug("Step 1: Getting authorization page from %s", AUTH_AUTHORIZE_URL)
 
-                # Follow redirects to get login form
-                auth_url = resp.headers.get("Location", str(resp.url))
+            # Create a dedicated connector with cookie jar
+            connector = aiohttp.TCPConnector(ssl=True)
 
-            # Step 2: Submit login credentials
-            login_data = {
-                "email": self._username,
-                "password": self._password,
-            }
+            async with aiohttp.ClientSession(
+                connector=connector,
+                cookie_jar=self._jar,
+                headers=headers
+            ) as login_session:
 
-            async with self._session.post(
-                auth_url,
-                data=login_data,
-                headers=headers,
-                allow_redirects=False
-            ) as resp:
-                if resp.status not in (200, 302, 303):
-                    _LOGGER.error("Login failed: %s", resp.status)
-                    return False
+                async with login_session.get(
+                    AUTH_AUTHORIZE_URL,
+                    params=auth_params,
+                    allow_redirects=True
+                ) as resp:
+                    if resp.status != 200:
+                        _LOGGER.error("Authorization page request failed: %s", resp.status)
+                        raise SeatApiAuthError(f"Authorization page request failed with status {resp.status}")
 
-                redirect_url = resp.headers.get("Location", "")
+                    html = await resp.text()
+                    current_url = str(resp.url)
+                    _LOGGER.debug("Landed on URL: %s", current_url)
 
-            # Step 3: Extract authorization code from redirect
+                # Step 2: Parse the login form
+                _LOGGER.debug("Step 2: Parsing login form")
+
+                # Extract form action
+                form_match = re.search(r'<form[^>]*id=["\']emailPasswordForm["\'][^>]*action=["\']([^"\']+)["\']', html, re.I | re.DOTALL)
+                if not form_match:
+                    form_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\'][^>]*id=["\']emailPasswordForm["\']', html, re.I | re.DOTALL)
+                if not form_match:
+                    form_match = re.search(r'<form[^>]*action=["\']([^"\']+)["\']', html, re.I)
+
+                if not form_match:
+                    _LOGGER.error("Could not find login form")
+                    _LOGGER.debug("HTML snippet: %s", html[:3000])
+                    raise SeatApiAuthError("Could not find login form on authorization page")
+
+                form_action = html_module.unescape(form_match.group(1))
+
+                # Make absolute URL
+                if form_action.startswith("/"):
+                    parsed = urlparse(current_url)
+                    form_action = f"{parsed.scheme}://{parsed.netloc}{form_action}"
+                elif not form_action.startswith("http"):
+                    base = current_url.rsplit("/", 1)[0]
+                    form_action = f"{base}/{form_action}"
+
+                _LOGGER.debug("Form action: %s", form_action)
+
+                # Extract hidden fields
+                hidden_fields = {}
+                for match in re.finditer(r'<input[^>]*type=["\']hidden["\'][^>]*>', html, re.I):
+                    input_html = match.group(0)
+                    name_match = re.search(r'name=["\']([^"\']+)["\']', input_html)
+                    value_match = re.search(r'value=["\']([^"\']*)["\']', input_html)
+                    if name_match:
+                        name = name_match.group(1)
+                        value = html_module.unescape(value_match.group(1)) if value_match else ""
+                        hidden_fields[name] = value
+
+                _LOGGER.debug("Found hidden fields: %s", list(hidden_fields.keys()))
+
+                # Step 3: Submit credentials
+                _LOGGER.debug("Step 3: Submitting credentials")
+
+                login_data = {
+                    **hidden_fields,
+                    "email": self._username,
+                    "password": self._password,
+                }
+
+                post_headers = self._get_browser_headers()
+                post_headers["Content-Type"] = "application/x-www-form-urlencoded"
+                post_headers["Origin"] = self.LOGIN_BASE
+                post_headers["Referer"] = current_url
+
+                async with login_session.post(
+                    form_action,
+                    data=login_data,
+                    headers=post_headers,
+                    allow_redirects=False
+                ) as resp:
+                    _LOGGER.debug("Login response status: %s", resp.status)
+
+                    if resp.status == 200:
+                        # Check for error in response
+                        error_html = await resp.text()
+                        if "error" in error_html.lower() or "incorrect" in error_html.lower() or "falsch" in error_html.lower():
+                            _LOGGER.error("Login failed - invalid credentials")
+                            raise SeatApiAuthError("Invalid username or password")
+                        # May need another redirect
+                        redirect_url = str(resp.url)
+                    elif resp.status in (301, 302, 303, 307):
+                        redirect_url = resp.headers.get("Location", "")
+                    else:
+                        _LOGGER.error("Login submission failed with status: %s", resp.status)
+                        raise SeatApiAuthError(f"Login submission failed with status {resp.status}")
+
+                # Step 4: Follow redirects until we get the authorization code
+                _LOGGER.debug("Step 4: Following redirects to get auth code")
+
+                max_redirects = 15
+                for i in range(max_redirects):
+                    if not redirect_url:
+                        break
+
+                    _LOGGER.debug("Redirect %d: %s", i + 1, redirect_url[:100])
+
+                    # Check if we have the authorization code
+                    if "seatconnect://" in redirect_url or "#code=" in redirect_url or "?code=" in redirect_url:
+                        break
+
+                    # Make absolute URL if needed
+                    if redirect_url.startswith("/"):
+                        parsed = urlparse(current_url)
+                        redirect_url = f"{parsed.scheme}://{parsed.netloc}{redirect_url}"
+
+                    try:
+                        async with login_session.get(
+                            redirect_url,
+                            allow_redirects=False,
+                            headers=self._get_browser_headers()
+                        ) as resp:
+                            current_url = redirect_url
+
+                            if resp.status in (301, 302, 303, 307):
+                                redirect_url = resp.headers.get("Location", "")
+                            elif resp.status == 200:
+                                # Check for JavaScript or meta redirect
+                                html = await resp.text()
+                                meta_match = re.search(r'http-equiv=["\']refresh["\'][^>]*content=["\'][^"\']*url=([^"\']+)', html, re.I)
+                                if meta_match:
+                                    redirect_url = html_module.unescape(meta_match.group(1))
+                                else:
+                                    # Look for JavaScript redirect
+                                    js_match = re.search(r'window\.location\s*=\s*["\']([^"\']+)["\']', html)
+                                    if js_match:
+                                        redirect_url = html_module.unescape(js_match.group(1))
+                                    else:
+                                        break
+                            else:
+                                _LOGGER.debug("Unexpected status %s during redirect", resp.status)
+                                break
+                    except aiohttp.ClientResponseError as e:
+                        if "seatconnect://" in str(e):
+                            redirect_url = str(e)
+                            break
+                        raise
+
+            # Step 5: Extract authorization code
+            _LOGGER.debug("Step 5: Extracting authorization code")
+
+            if not redirect_url:
+                _LOGGER.error("No final redirect URL received")
+                raise SeatApiAuthError("Authentication failed - no redirect URL received")
+
+            # Parse the code from fragment or query
             parsed = urlparse(redirect_url)
-            params = parse_qs(parsed.fragment or parsed.query)
+
+            # Try fragment first (common for implicit flow)
+            if parsed.fragment:
+                params = parse_qs(parsed.fragment)
+            else:
+                params = parse_qs(parsed.query)
 
             auth_code = params.get("code", [None])[0]
-            if not auth_code:
-                _LOGGER.error("No authorization code received")
-                return False
 
-            # Step 4: Exchange code for tokens
+            if not auth_code:
+                _LOGGER.error("No authorization code found in URL: %s", redirect_url)
+                raise SeatApiAuthError("Authentication failed - no authorization code received")
+
+            _LOGGER.debug("Got authorization code, exchanging for tokens")
+
+            # Step 6: Exchange code for tokens
             token_data = {
                 "grant_type": "authorization_code",
                 "code": auth_code,
@@ -355,11 +501,16 @@ class SeatConnectAuth:
             async with self._session.post(
                 AUTH_TOKEN_URL,
                 data=token_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": USER_AGENT,
+                    "Accept": "application/json",
+                }
             ) as resp:
                 if resp.status != 200:
-                    _LOGGER.error("Token exchange failed: %s", resp.status)
-                    return False
+                    error_text = await resp.text()
+                    _LOGGER.error("Token exchange failed: %s - %s", resp.status, error_text)
+                    raise SeatApiAuthError(f"Token exchange failed with status {resp.status}")
 
                 tokens = await resp.json()
                 self._access_token = tokens.get("access_token")
@@ -369,11 +520,30 @@ class SeatConnectAuth:
                 expires_in = tokens.get("expires_in", 3600)
                 self._token_expires = datetime.now().timestamp() + expires_in
 
+                _LOGGER.info("Seat Connect authentication successful")
                 return True
 
+        except SeatApiAuthError:
+            raise
         except Exception as err:
             _LOGGER.exception("Login error: %s", err)
-            return False
+            raise SeatApiAuthError(f"Login failed due to unexpected error: {err}") from err
+
+
+    def _get_browser_headers(self) -> dict[str, str]:
+        """Return browser-like request headers."""
+        return {
+            "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+        }
 
     async def async_refresh_tokens(self) -> bool:
         """Refresh access token using refresh token."""
@@ -390,7 +560,11 @@ class SeatConnectAuth:
             async with self._session.post(
                 AUTH_TOKEN_URL,
                 data=token_data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": USER_AGENT,
+                    "Accept": "application/json",
+                }
             ) as resp:
                 if resp.status != 200:
                     _LOGGER.warning("Token refresh failed, trying full login")
@@ -412,10 +586,16 @@ class SeatConnectAuth:
     async def async_ensure_valid_token(self) -> bool:
         """Ensure we have a valid access token."""
         if not self._access_token:
-            return await self.async_login()
+            result = await self.async_login()
+            if not result:
+                raise SeatApiAuthError("Failed to authenticate with Seat Connect")
+            return result
 
         if self._token_expires and datetime.now().timestamp() > self._token_expires - 60:
-            return await self.async_refresh_tokens()
+            result = await self.async_refresh_tokens()
+            if not result:
+                raise SeatApiAuthError("Failed to refresh authentication token")
+            return result
 
         return True
 
