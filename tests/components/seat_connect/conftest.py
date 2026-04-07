@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.seat_connect.api import SeatVehicleData
+from custom_components.seat_connect.api import (
+    SeatChargingStatus,
+    SeatClimatisationStatus,
+    SeatVehicleData,
+    SeatVehicleStatus,
+)
 from custom_components.seat_connect.const import DOMAIN
 
 
@@ -18,13 +23,25 @@ def vehicle_data() -> dict[str, SeatVehicleData]:
             model="Born",
             battery_soc=80,
             battery_range_km=360,
-            charging_power_kw=7.2,
-            charging_state="charging",
-            plug_connected=True,
-            doors_closed=True,
-            windows_closed=True,
+            charging=SeatChargingStatus(
+                power_kw=7.2,
+                state="charging",
+                plug_connected=True,
+            ),
+            status=SeatVehicleStatus(
+                door_front_left_open=False,
+                door_front_right_open=False,
+                door_rear_left_open=False,
+                door_rear_right_open=False,
+                trunk_open=False,
+                hood_open=False,
+                window_front_left_open=False,
+                window_front_right_open=False,
+                window_rear_left_open=False,
+                window_rear_right_open=False,
+            ),
             is_locked=False,
-            climate_active=False,
+            climatisation=SeatClimatisationStatus(active=False),
             capabilities={"CLIMATE"},
         )
     }

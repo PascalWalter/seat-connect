@@ -304,7 +304,7 @@ class SeatConnectAuth:
 
             # Step 1: Initialize authorization request
             auth_params = {
-                "response_type": "code id_token",
+                "response_type": "code",
                 "client_id": CLIENT_ID,
                 "redirect_uri": REDIRECT_URI,
                 "scope": " ".join(SCOPES),
@@ -753,9 +753,10 @@ class SeatApiClient(SeatApiClientProtocol):
         climate_task = self._async_get_climatisation_status(vin, base_url)
         position_task = self._async_get_position(vin, base_url)
         capabilities_task = self._async_get_capabilities(vin, base_url)
+        trip_task = self._async_get_trip_statistics(vin, base_url)
 
         results = await asyncio.gather(
-            status_task, charging_task, climate_task, position_task, capabilities_task,
+            status_task, charging_task, climate_task, position_task, capabilities_task, trip_task,
             return_exceptions=True
         )
 
@@ -764,6 +765,7 @@ class SeatApiClient(SeatApiClientProtocol):
         climate_data = results[2] if not isinstance(results[2], Exception) else {}
         position_data = results[3] if not isinstance(results[3], Exception) else {}
         capabilities = results[4] if not isinstance(results[4], Exception) else set()
+        trip_data = results[5] if not isinstance(results[5], Exception) else {}
 
         # Parse vehicle info
         vehicle_info = vehicle.get("vehicle", vehicle)
@@ -785,6 +787,7 @@ class SeatApiClient(SeatApiClientProtocol):
             climatisation=self._build_climatisation_status(climate_data),
             position=self._build_position(position_data),
             odometer=self._build_odometer(status_data),
+            trip_statistics=self._build_trip_statistics(trip_data),
             is_locked=self._extract_lock_status(status_data),
             capabilities=capabilities if isinstance(capabilities, set) else set(),
         )
@@ -850,6 +853,17 @@ class SeatApiClient(SeatApiClientProtocol):
         except Exception as err:
             _LOGGER.debug("Capabilities fetch failed for %s: %s", vin, err)
         return set()
+
+    async def _async_get_trip_statistics(self, vin: str, base_url: str) -> dict[str, Any]:
+        """Get short-term trip statistics."""
+        try:
+            return await self._request(
+                "GET",
+                f"{base_url}/bs/tripstatistics/v1/SEAT/ES/vehicles/{vin}/tripdata/shortTerm"
+            )
+        except Exception as err:
+            _LOGGER.debug("Trip statistics fetch failed for %s: %s", vin, err)
+            return {}
 
     # Data extraction helpers
     def _determine_engine_type(self, info: dict, caps: set) -> str:
@@ -1024,6 +1038,17 @@ class SeatApiClient(SeatApiClientProtocol):
         return SeatVehicleOdometer(
             value=_coerce_float(odometer.get("odometer")),
             unit=odometer.get("unit", "km"),
+        )
+
+    def _build_trip_statistics(self, data: dict) -> SeatTripStatistics:
+        """Build trip statistics from API response."""
+        trip = data.get("tripData", {})
+        return SeatTripStatistics(
+            average_speed_kmh=_coerce_float(trip.get("averageSpeed")),
+            average_consumption_kwh=_coerce_float(trip.get("averageElectricConsumption")),
+            average_consumption_l=_coerce_float(trip.get("averageFuelConsumption")),
+            total_distance_km=_coerce_float(trip.get("mileage")),
+            total_time_min=_coerce_int(trip.get("travelTime")),
         )
 
     # Vehicle control methods
