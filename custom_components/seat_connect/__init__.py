@@ -4,20 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Any
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
 from .api import SeatApiClient, SeatApiClientProtocol
-from .config_flow import SeatConnectOptionsFlowHandler
 from .const import (
     CONF_SPIN,
     CONF_UPDATE_INTERVAL,
@@ -70,26 +67,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
 
-    # Check if using OAuth or username/password authentication
-    if "auth_implementation" in entry.data:
-        # OAuth2 flow
-        implementation = await config_entry_oauth2_flow.async_get_config_entry_implementation(
-            hass, entry
-        )
-        oauth_session = config_entry_oauth2_flow.OAuth2Session(hass, entry, implementation)
-        client = SeatApiClient(
-            session=session,
-            oauth_session=oauth_session,
-            spin=entry.data.get(CONF_SPIN),
-        )
-    else:
-        # Username/password authentication
-        client = SeatApiClient(
-            session=session,
-            username=entry.data.get(CONF_USERNAME),
-            password=entry.data.get(CONF_PASSWORD),
-            spin=entry.data.get(CONF_SPIN),
-        )
+    client = SeatApiClient(
+        session=session,
+        username=entry.data.get(CONF_USERNAME),
+        password=entry.data.get(CONF_PASSWORD),
+        spin=entry.data.get(CONF_SPIN),
+    )
 
     update_interval = _async_get_update_interval(entry)
     coordinator = SeatDataUpdateCoordinator(
@@ -284,9 +267,3 @@ def _async_get_runtime_for_vin(hass: HomeAssistant, vin: str) -> SeatConnectRunt
         if runtime.coordinator.data and vin in runtime.coordinator.data:
             return runtime
     raise HomeAssistantError(f"No runtime loaded for VIN {vin}")
-
-
-async def async_get_options_flow(entry: ConfigEntry) -> Any:
-    """Return the options flow handler."""
-
-    return SeatConnectOptionsFlowHandler(entry)

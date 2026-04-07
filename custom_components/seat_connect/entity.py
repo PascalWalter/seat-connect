@@ -26,16 +26,23 @@ class SeatConnectEntity(CoordinatorEntity[SeatDataUpdateCoordinator], Generic[T]
         self._attr_unique_id = f"{vin}_{key}"
 
     @property
-    def _vehicle(self) -> SeatVehicleData:
+    def _vehicle(self) -> SeatVehicleData | None:
         data = self.coordinator.data or {}
-        vehicle = data.get(self._vin)
-        if not vehicle:
-            raise RuntimeError(f"Vehicle {self._vin} missing from coordinator data")
-        return vehicle
+        return data.get(self._vin)
+
+    @property
+    def available(self) -> bool:
+        return super().available and self._vehicle is not None
 
     @property
     def device_info(self) -> DeviceInfo:
         vehicle = self._vehicle
+        if vehicle is None:
+            return DeviceInfo(
+                identifiers={(DOMAIN, self._vin)},
+                manufacturer="SEAT",
+                name=self._vin,
+            )
         return DeviceInfo(
             identifiers={(DOMAIN, self._vin)},
             manufacturer="SEAT",

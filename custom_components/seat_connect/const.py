@@ -44,20 +44,14 @@ AUTH_TOKEN_URL = f"{AUTH_BASE_URL}/oidc/v1/token"
 AUTH_REVOKE_URL = f"{AUTH_BASE_URL}/oidc/v1/revoke"
 
 # Seat Connect App Client Configuration
-# Using VW ID client which works with the current VW Group identity system
-# SEAT vehicles are accessible through the VW Group ecosystem
-CLIENT_ID = "a24fba63-34b3-4d43-b181-942111e6bda8@apps_vw-dilab_com"
-REDIRECT_URI = "weconnect://authenticated"
-USER_AGENT = "WeConnect/5.14.2 (Android 14)"
-X_APP_NAME = "WeConnect"
-X_APP_VERSION = "5.14.2"
+CLIENT_ID = "50f215ac-4f68-4c4b-b9f3-45e21de01986@apps_vw-dilab_com"
+REDIRECT_URI = "seatconnect://identity-kit/login"
+USER_AGENT = "SEATConnect/3.4.0 (Android 14)"
+X_APP_NAME = "SEATConnect"
+X_APP_VERSION = "3.4.0"
 
 # UI Locale for authentication (required by VW Group)
 UI_LOCALES = "de-DE de"
-
-# Alternative SEAT-specific configuration (may work in the future)
-# SEAT_CLIENT_ID = "50f215ac-4f68-4c4b-b9f3-45e21de01986@apps_vw-dilab_com"
-# SEAT_REDIRECT_URI = "seatconnect://identity-kit/login"
 
 # API Scopes - these need to match what VW ID/We Connect app uses
 SCOPES = [

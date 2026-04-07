@@ -11,7 +11,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import config_entry_oauth2_flow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 if TYPE_CHECKING:
@@ -43,6 +42,13 @@ class SeatConnectFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self._username: str | None = None
         self._password: str | None = None
         self._spin: str | None = None
+
+    @staticmethod
+    def async_get_options_flow(
+        entry: config_entries.ConfigEntry,
+    ) -> SeatConnectOptionsFlowHandler:
+        """Return the options flow handler."""
+        return SeatConnectOptionsFlowHandler(entry)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
